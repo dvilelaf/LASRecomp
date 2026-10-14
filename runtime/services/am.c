@@ -4,6 +4,7 @@
 
 #include "../hle.h"
 #include "../ipc.h"
+#include "../settings.h"
 
 #define AM_NO_MESSAGE MAKE_RESULT(128, 3)
 #define AM_NO_DATA MAKE_RESULT(128, 2)
@@ -150,7 +151,13 @@ static void application_functions(Service *s, IpcReq *req, IpcResp *resp) {
         }
         break;
     case 20: OUT(uint64_t, 0) = 0; resp_size(resp, 8); break;  // EnsureSaveData
-    case 21: memcpy(resp->data, "en-US\0\0\0", 8); resp_size(resp, 8); break;  // GetDesiredLanguage
+    case 21: {  // GetDesiredLanguage: the game's text language (settings: runtime/settings.c, "language")
+        char lang[8] = {0};
+        snprintf(lang, sizeof lang, "%s", settings_language());
+        memcpy(resp->data, lang, 8);
+        resp_size(resp, 8);
+        break;
+    }
     case 23: memcpy(resp->data, "1.0.0", 6); resp_size(resp, 0x10); break;
     case 40: OUT(uint8_t, 0) = 0; resp_size(resp, 1); break;  // NotifyRunning
     case 130: case 140: resp->copy_handles[resp->ncopy++] = new_event(); break;

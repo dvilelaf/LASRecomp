@@ -29,6 +29,44 @@ Settings g_settings = {
     .upscaler = UPSCALE_SHARP,  // (MetalFX on macOS, AMD FSR 1 on Windows)
 };
 
+// The game's own text languages: its RomFS carries these per region (regionUS/USen|USes|USfr, regionEU/EUen|EUes|...,
+// regionJP/JPja, regionKR/KRkr, regionTW/TWch, regionCN/CNch), and the game picks one from the system language it
+// reads back (runtime/services/am.c), exactly as it does on the console. Codes as the Switch reports them.
+const char *const g_language_codes[N_LANGUAGES] = {"auto", "ja", "en-US", "es", "fr", "de", "it", "nl", "ru", "ko",
+                                                   "zh-CN", "zh-TW"};
+const char *const g_language_names[N_LANGUAGES] = {"Auto", "Japanese", "English", "Spanish", "French", "German",
+                                                   "Italian", "Dutch", "Russian", "Korean", "Chinese (Simplified)",
+                                                   "Chinese (Traditional)"};
+
+// LANG_AUTO: the host's own language (LANG=es_ES.UTF-8 -> es), en-US when it is none of the game's
+static const char *host_language(void) {
+    const char *e = getenv("LC_ALL");
+    if (!e || !*e) e = getenv("LC_MESSAGES");
+    if (!e || !*e) e = getenv("LANG");
+    if (!e || !*e || !strcmp(e, "C") || !strcmp(e, "POSIX")) return "en-US";
+    char l[8] = {0};
+    size_t n = 0;
+    for (const char *p = e; *p && *p != '.' && *p != '@' && *p != '_' && n < sizeof l - 1; p++) l[n++] = *p;
+    static const struct { const char *loc, *code; } map[] = {{"ja", "ja"}, {"ko", "ko"}, {"ru", "ru"}, {"nl", "nl"},
+                                                             {"de", "de"}, {"it", "it"}, {"fr", "fr"}, {"es", "es"}};
+    for (size_t i = 0; i < sizeof map / sizeof *map; i++)
+        if (!strcmp(l, map[i].loc)) return map[i].code;
+    if (!strcmp(l, "zh")) return e[n] == '_' && e[n + 1] == 'T' ? "zh-TW" : "zh-CN";  // (TW / HK: traditional)
+    return "en-US";
+}
+
+const char *settings_language(void) {
+    int i = g_settings.language;
+    return i > LANG_AUTO && i < N_LANGUAGES ? g_language_codes[i] : host_language();
+}
+
+const char *settings_language_name(void) {
+    const char *c = settings_language();
+    for (int i = 0; i < N_LANGUAGES; i++)
+        if (!strcmp(c, g_language_codes[i])) return g_language_names[i];
+    return "English";
+}
+
 void settings_load(void) {
     static bool loaded;
     if (loaded) return;
@@ -67,6 +105,11 @@ void settings_load(void) {
         else if (!strcmp(key, "hide_hero_icon")) g_settings.hide_hero_icon = atoi(val) != 0;
         else if (!strcmp(key, "prompts")) g_settings.prompts = !strcmp(val, "nintendo") ? PROMPTS_NINTENDO : !strcmp(val, "xbox") ?
                                                               PROMPTS_XBOX : !strcmp(val, "playstation") ? PROMPTS_PLAYSTATION : PROMPTS_AUTO;
+        else if (!strcmp(key, "language")) {  // ("auto" or one of the game's codes; anything else: auto)
+            g_settings.language = LANG_AUTO;
+            for (int i = 1; i < N_LANGUAGES; i++)
+                if (!strcmp(val, g_language_codes[i])) g_settings.language = i;
+        }
         else if (!strcmp(key, "tracker")) g_settings.tracker = atoi(val) != 0;
         else if (!strcmp(key, "menu_tip_seen")) g_settings.menu_tip_seen = atoi(val) != 0, tip_key = true;
         else if (!strcmp(key, "aspect_asked")) g_settings.aspect_asked = atoi(val) != 0, aspect_key = true;
@@ -116,6 +159,8 @@ void settings_save(void) {
             g_settings.hide_hero_icon);
     static const char *const prompts[] = {"auto", "nintendo", "xbox", "playstation"};
     fprintf(f, "prompts = %s\n", prompts[g_settings.prompts & 3]);
+    fprintf(f, "language = %s\n", g_language_codes[g_settings.language > LANG_AUTO && g_settings.language < N_LANGUAGES
+                                                     ? g_settings.language : LANG_AUTO]);
     fprintf(f, "tracker = %d\n", g_settings.tracker);
     fprintf(f, "aspect_asked = %d\n", g_settings.aspect_asked);
     fprintf(f, "menu_tip_seen = %d\n", g_settings.menu_tip_seen);

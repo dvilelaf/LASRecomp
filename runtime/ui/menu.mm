@@ -581,6 +581,19 @@ static void tab_about(void) {
         choice("Button icons", &g_settings.prompts, names, 4);
     }
     ImGui::Spacing();
+    header("System language");
+    {
+        // what the game is told the console's language is: its text follows this (runtime/settings.c)
+        char autol[64];
+        snprintf(autol, sizeof autol, "Auto (%s)", settings_language_name());
+        const char *names[N_LANGUAGES];
+        names[0] = autol;
+        for (int i = 1; i < N_LANGUAGES; i++) names[i] = g_language_names[i];
+        if (choice("Language", &g_settings.language, names, N_LANGUAGES)) settings_save();
+    }
+    hint("The game's text language, as its own system setting. Applies when the game restarts: Quit -> Title "
+         "screen, then Play.");
+    ImGui::Spacing();
     header("Controls");
     controls_bindings_draw(ImGui::GetFontSize() / 34);
     ImGui::Spacing();
